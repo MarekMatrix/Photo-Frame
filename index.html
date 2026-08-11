@@ -31,7 +31,8 @@
     overscroll-behavior:none;}
 
   /* ---------- stage ---------- */
-  #stage{position:fixed; inset:0; background:var(--stage); z-index:1;}
+  #stage{position:fixed; top:0; left:0; width:100vw; height:var(--vh,100dvh);
+    background:var(--stage); z-index:1;}
   .layer{position:absolute; inset:0; opacity:0; transition:opacity var(--fade,1200ms) ease-in-out;}
   .layer.on{opacity:1;}
   .backdrop{position:absolute; inset:0; background-size:cover; background-position:center;
@@ -41,7 +42,9 @@
 
   /* presentation modes, set on #stage */
   #stage[data-mode="blur"] .backdrop{opacity:1;}
-  #stage[data-mode="fill"] .layer img{object-fit:cover;}
+  #stage[data-mode="fill"] .layer img{object-fit:cover;
+    object-position:50% var(--crop-y,50%);
+    transform:scale(var(--zoom,1)); transform-origin:50% var(--crop-y,50%);}
   #stage[data-mode="mat"] .matte{opacity:1;}
   #stage[data-mode="mat"] .layer img{
     inset:auto; top:50%; left:50%; transform:translate(-50%,-50%);
@@ -51,7 +54,8 @@
     box-shadow:0 0 0 1px rgba(0,0,0,.30), 0 18px 46px rgba(0,0,0,.45);
   }
 
-  #dim{position:fixed; inset:0; background:#000; opacity:0; pointer-events:none; z-index:3;
+  #dim{position:fixed; top:0; left:0; width:100vw; height:var(--vh,100dvh);
+    background:#000; opacity:0; pointer-events:none; z-index:3;
     transition:opacity 2s linear;}
 
   /* ---------- clock ---------- */
@@ -200,6 +204,16 @@
         <div class="row"><span class="k">Mat width</span><span class="v" id="vMatW">52 px</span></div>
         <input type="range" id="rMatW" min="0" max="140" step="4">
       </div>
+      <div id="fillOpts">
+        <div class="row"><span class="k">Crop from</span></div>
+        <div class="seg" id="segCrop">
+          <button data-v="0">Top</button>
+          <button data-v="50">Centre</button>
+          <button data-v="100">Bottom</button>
+        </div>
+        <div class="row"><span class="k">Zoom</span><span class="v" id="vZoom">100 %</span></div>
+        <input type="range" id="rZoom" min="100" max="130" step="1">
+      </div>
       <div class="hint">Every mode except <b>Fill</b> shows the whole frame, uncropped. Nothing pans or zooms — the photo is still.</div>
     </div>
 
@@ -275,7 +289,7 @@ async function loadSettings(){ try{ return await req(tx("kv","readonly").get("se
 
 /* ============ state ============ */
 const S = {
-  mode:"black", mat:"warm", matW:52,
+  mode:"black", mat:"warm", matW:52, zoom:100, cropY:50,
   intervalIdx:5, fade:1200, shuffle:true,
   clock:false, bright:100,
   night:false, from:"22:30", to:"07:00", nightB:8
@@ -401,16 +415,21 @@ function apply(){
   const matCol = S.mat==="warm"?"var(--mat-warm)":S.mat==="cool"?"var(--mat-cool)":"var(--mat-dark)";
   document.querySelectorAll(".matte").forEach(m=>m.style.background=matCol);
   $("#matOpts").style.display = S.mode==="mat" ? "" : "none";
+  $("#fillOpts").style.display = S.mode==="fill" ? "" : "none";
+  stage.style.setProperty("--zoom", (S.zoom/100).toFixed(3));
+  stage.style.setProperty("--crop-y", S.cropY+"%");
 
   $("#vInt").textContent=INT_LABEL[S.intervalIdx];
   $("#vFade").textContent=(S.fade/1000).toFixed(1)+" s";
   $("#vMatW").textContent=S.matW+" px";
+  $("#vZoom").textContent=S.zoom+" %";
   $("#vBright").textContent=S.bright+" %";
   $("#vNightB").textContent=S.nightB+" %";
   $("#clock").classList.toggle("on", S.clock);
 
-  setPressed("#segMode",S.mode); setPressed("#segMat",S.mat);
+  setPressed("#segMode",S.mode); setPressed("#segMat",S.mat); setPressed("#segCrop",String(S.cropY));
   $("#rInt").value=S.intervalIdx; $("#rFade").value=S.fade; $("#rMatW").value=S.matW;
+  $("#rZoom").value=S.zoom;
   $("#rBright").value=S.bright; $("#rNightB").value=S.nightB;
   $("#cShuffle").checked=S.shuffle; $("#cClock").checked=S.clock; $("#cNight").checked=S.night;
   $("#tFrom").value=S.from; $("#tTo").value=S.to;
@@ -499,6 +518,8 @@ $("#bClear").addEventListener("click",async ()=>{
 
 document.querySelectorAll("#segMode button").forEach(b=>b.addEventListener("click",()=>{ S.mode=b.dataset.v; apply(); }));
 document.querySelectorAll("#segMat button").forEach(b=>b.addEventListener("click",()=>{ S.mat=b.dataset.v; apply(); }));
+document.querySelectorAll("#segCrop button").forEach(b=>b.addEventListener("click",()=>{ S.cropY=+b.dataset.v; apply(); }));
+$("#rZoom").addEventListener("input",e=>{ S.zoom=+e.target.value; apply(); });
 
 $("#rInt").addEventListener("input",e=>{ S.intervalIdx=+e.target.value; apply(); restart(); });
 $("#rFade").addEventListener("input",e=>{ S.fade=+e.target.value; apply(); });
@@ -510,6 +531,16 @@ $("#cClock").addEventListener("change",e=>{ S.clock=e.target.checked; apply(); }
 $("#cNight").addEventListener("change",e=>{ S.night=e.target.checked; apply(); });
 $("#tFrom").addEventListener("change",e=>{ S.from=e.target.value; apply(); });
 $("#tTo").addEventListener("change",e=>{ S.to=e.target.value; apply(); });
+
+/* ============ viewport ============ */
+function fitViewport(){
+  const h = (window.visualViewport ? window.visualViewport.height : 0) || window.innerHeight;
+  document.documentElement.style.setProperty("--vh", h+"px");
+}
+fitViewport();
+window.addEventListener("resize", fitViewport);
+window.addEventListener("orientationchange", ()=>setTimeout(fitViewport,300));
+if(window.visualViewport) window.visualViewport.addEventListener("resize", fitViewport);
 
 /* ============ boot ============ */
 (async function(){
