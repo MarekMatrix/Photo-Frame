@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Frame">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -282,7 +282,7 @@
 <script>
 "use strict";
 
-const BUILD = "2026-08-11.5";
+const BUILD = "2026-08-11.6";
 
 /* ============ storage ============ */
 const DB_NAME="photoframe", DB_VER=1;
@@ -566,6 +566,9 @@ function readDiag(){
     "visualvp     : "+(vv?Math.round(vv.width)+" x "+Math.round(vv.height)+"  scale "+vv.scale.toFixed(2):"n/a"),
     "screen       : "+screen.width+" x "+screen.height,
     "avail screen : "+screen.availWidth+" x "+screen.availHeight,
+    "shortfall    : "+(Math.max(screen.availWidth,screen.availHeight)===window.innerWidth
+        ? (Math.min(screen.availWidth,screen.availHeight)-window.innerHeight)
+        : (Math.max(screen.availWidth,screen.availHeight)-window.innerHeight))+" pt (0 = full screen)",
     "pixel ratio  : "+window.devicePixelRatio,
     "safe area    : t"+sa[0]+" r"+sa[1]+" b"+sa[2]+" l"+sa[3],
     "orientation  : "+(window.innerWidth>window.innerHeight?"landscape":"portrait"),
