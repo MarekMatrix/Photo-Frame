@@ -148,6 +148,10 @@
 </head>
 <body>
 
+<div id="probe" style="position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;
+  padding-top:env(safe-area-inset-top);padding-right:env(safe-area-inset-right);
+  padding-bottom:env(safe-area-inset-bottom);padding-left:env(safe-area-inset-left);"></div>
+
 <div id="stage" data-mode="black" style="--mat-w:52px">
   <div class="layer" id="lA"><div class="backdrop"></div><div class="matte"></div><img alt=""></div>
   <div class="layer" id="lB"><div class="backdrop"></div><div class="matte"></div><img alt=""></div>
@@ -253,6 +257,22 @@
       <div class="hint">If this says <b>no</b>, open Settings → Display &amp; Brightness → Auto-Lock and choose <b>Never</b>. Triple-click the top button to start Guided Access if you want the iPad locked to this screen.</div>
     </div>
 
+    <div class="group">
+      <div class="label">Diagnostics</div>
+      <pre id="diag" style="font-family:var(--mono);font-size:10.5px;line-height:1.8;color:#c3c4c9;
+        background:var(--panel-2);border:1px solid var(--line);border-radius:2px;padding:12px;
+        margin:0 0 10px;white-space:pre-wrap;overflow-x:auto;">—</pre>
+      <button class="btn wide" id="bBounds">Flash the page bounds</button>
+      <div class="hint">The flash paints the whole document magenta for three seconds. Anything still black afterwards is outside the page and can't be reached by this app.</div>
+    </div>
+
+    <div class="group">
+      <div class="label">Version</div>
+      <div class="row"><span class="k">Running</span><span class="v" id="vBuild">—</span></div>
+      <button class="btn wide" id="bUpdate">Check for a newer version</button>
+      <div class="hint" id="updMsg">Compares this copy against the one on the server and reloads if they differ. Your photos aren't affected by an update.</div>
+    </div>
+
   </div>
 </aside>
 
@@ -261,6 +281,8 @@
 
 <script>
 "use strict";
+
+const BUILD = "2026-08-11.5";
 
 /* ============ storage ============ */
 const DB_NAME="photoframe", DB_VER=1;
@@ -490,7 +512,7 @@ $("#bPause").addEventListener("click",e=>{
   $("#bPause").textContent=paused?"Play":"Pause";
   paused?clearTimeout(timer):restart(); showChrome();
 });
-$("#bSettings").addEventListener("click",e=>{e.stopPropagation(); panel.classList.add("on");});
+$("#bSettings").addEventListener("click",e=>{e.stopPropagation(); panel.classList.add("on"); readDiag();});
 $("#pClose").addEventListener("click",()=>panel.classList.remove("on"));
 panel.addEventListener("click",e=>e.stopPropagation());
 
@@ -532,6 +554,50 @@ $("#cNight").addEventListener("change",e=>{ S.night=e.target.checked; apply(); }
 $("#tFrom").addEventListener("change",e=>{ S.from=e.target.value; apply(); });
 $("#tTo").addEventListener("change",e=>{ S.to=e.target.value; apply(); });
 
+/* ============ diagnostics ============ */
+function readDiag(){
+  const cs=getComputedStyle($("#probe"));
+  const sa=["top","right","bottom","left"].map(k=>parseFloat(cs["padding"+k[0].toUpperCase()+k.slice(1)])||0);
+  const vv=window.visualViewport;
+  const lines=[
+    "launched     : "+(window.navigator.standalone===true?"home screen (standalone)":"browser tab"),
+    "window       : "+window.innerWidth+" x "+window.innerHeight,
+    "document     : "+document.documentElement.clientWidth+" x "+document.documentElement.clientHeight,
+    "visualvp     : "+(vv?Math.round(vv.width)+" x "+Math.round(vv.height)+"  scale "+vv.scale.toFixed(2):"n/a"),
+    "screen       : "+screen.width+" x "+screen.height,
+    "avail screen : "+screen.availWidth+" x "+screen.availHeight,
+    "pixel ratio  : "+window.devicePixelRatio,
+    "safe area    : t"+sa[0]+" r"+sa[1]+" b"+sa[2]+" l"+sa[3],
+    "orientation  : "+(window.innerWidth>window.innerHeight?"landscape":"portrait"),
+    "--vh         : "+getComputedStyle(document.documentElement).getPropertyValue("--vh").trim(),
+    "build        : "+BUILD
+  ];
+  $("#diag").textContent=lines.join("\n");
+}
+window.addEventListener("resize", ()=>setTimeout(readDiag,80));
+
+$("#bBounds").addEventListener("click", ()=>{
+  const prev=stage.style.background;
+  stage.style.background="#ff00c8";
+  stage.style.boxShadow="inset 0 0 0 5px #00ffe1";
+  setTimeout(()=>{ stage.style.background=prev; stage.style.boxShadow=""; }, 3000);
+});
+
+/* ============ version ============ */
+$("#vBuild").textContent = BUILD;
+$("#bUpdate").addEventListener("click", async ()=>{
+  const msg=$("#updMsg");
+  msg.textContent="Checking…";
+  try{
+    const r = await fetch(location.pathname + "?cb=" + Date.now(), {cache:"reload"});
+    const t = await r.text();
+    const m = t.match(/BUILD = "([^"]+)"/);
+    if(!m){ msg.textContent="Couldn't read the version on the server."; return; }
+    if(m[1] === BUILD){ msg.textContent="Already running the newest version (" + BUILD + ")."; }
+    else { msg.textContent="Found " + m[1] + " — reloading…"; setTimeout(()=>location.reload(), 900); }
+  }catch(e){ msg.textContent="No connection, so the server version couldn't be checked."; }
+});
+
 /* ============ viewport ============ */
 function fitViewport(){
   const h = (window.visualViewport ? window.visualViewport.height : 0) || window.innerHeight;
@@ -555,6 +621,7 @@ if(window.visualViewport) window.visualViewport.addEventListener("resize", fitVi
       "This device won't let the page store photos, so they'll need re-adding each time. Serving the file over https (or from a home-screen shortcut) fixes it.";
   }
   apply();
+  readDiag();
   updateCount();
   if(photos.length){
     $("#empty").classList.add("hidden");
