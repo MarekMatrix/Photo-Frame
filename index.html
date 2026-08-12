@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<!-- black-translucent anchors the layout viewport to the TOP of the web view, so
+     in-flow content flows down into the last 32 points. With "black" or "default"
+     the viewport is anchored 32pt down instead and that strip lands under the
+     status bar where ordinary content can't reach it. Note black-translucent is
+     deprecated by WebKit; if it is ever removed, see the notes in the brief. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Frame">
 <meta name="theme-color" content="#000000">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -26,12 +31,19 @@
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%;margin:0;background:var(--stage);overflow:hidden;
+  /* In a standalone iOS web app the layout viewport is 32pt shorter than the
+     screen, and position:fixed elements are clipped to it. That clipping — not any
+     missing pixels — is the whole of the "32 points are unreachable" problem.
+     In-flow and absolutely-positioned content is NOT clipped and paints the full
+     970. So: one 100lvh-tall relative body, everything absolute inside it.
+     Nothing that needs to reach the screen edge may become position:fixed. */
+  html{height:100lvh; margin:0; background:var(--stage);}
+  body{position:relative; height:100lvh; margin:0; background:var(--stage); overflow:hidden;
     font-family:var(--mono); color:var(--ink); -webkit-user-select:none; user-select:none;
     overscroll-behavior:none;}
 
   /* ---------- stage ---------- */
-  #stage{position:fixed; top:0; left:0; width:100vw; height:var(--vh,100dvh);
+  #stage{position:absolute; top:0; left:0; width:100%; height:100%;
     background:var(--stage); z-index:1;}
   .layer{position:absolute; inset:0; opacity:0; transition:opacity var(--fade,1200ms) ease-in-out;}
   .layer.on{opacity:1;}
@@ -54,20 +66,20 @@
     box-shadow:0 0 0 1px rgba(0,0,0,.30), 0 18px 46px rgba(0,0,0,.45);
   }
 
-  #dim{position:fixed; top:0; left:0; width:100vw; height:var(--vh,100dvh);
+  #dim{position:absolute; top:0; left:0; width:100%; height:100%;
     background:#000; opacity:0; pointer-events:none; z-index:3;
     transition:opacity 2s linear;}
 
   /* ---------- clock ---------- */
-  #clock{position:fixed; z-index:2; left:calc(env(safe-area-inset-left) + 34px); bottom:calc(env(safe-area-inset-bottom) + 28px);
+  #clock{position:absolute; z-index:2; left:calc(env(safe-area-inset-left) + 34px); bottom:calc(env(safe-area-inset-bottom) + 28px);
     opacity:0; transition:opacity .6s; pointer-events:none; text-shadow:0 2px 14px rgba(0,0,0,.85);}
   #clock.on{opacity:.82;}
   #clock .t{font-size:44px; font-weight:300; letter-spacing:.02em; line-height:1;}
   #clock .d{font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:#cfcdc7; margin-top:9px;}
 
   /* ---------- chrome ---------- */
-  #tapzone{position:fixed; inset:0; z-index:4;}
-  #bar{position:fixed; z-index:6; left:0; right:0; bottom:0; padding:16px calc(env(safe-area-inset-right) + 20px)
+  #tapzone{position:absolute; inset:0; z-index:4;}
+  #bar{position:absolute; z-index:6; left:0; right:0; bottom:0; padding:16px calc(env(safe-area-inset-right) + 20px)
       calc(env(safe-area-inset-bottom) + 16px) calc(env(safe-area-inset-left) + 20px);
     display:flex; gap:10px; align-items:center; justify-content:center;
     background:linear-gradient(to top, rgba(0,0,0,.82), rgba(0,0,0,0));
@@ -81,7 +93,7 @@
   #counter{font-size:10px; letter-spacing:.16em; color:var(--muted); padding:0 6px;}
 
   /* ---------- panel ---------- */
-  #panel{position:fixed; top:0; right:0; bottom:0; width:min(430px,100%);
+  #panel{position:absolute; top:0; right:0; bottom:0; width:min(430px,100%);
     background:var(--panel); border-left:1px solid var(--line);
     transform:translateX(101%); transition:transform .34s cubic-bezier(.4,0,.2,1);
     display:flex; flex-direction:column; z-index:10;
@@ -135,7 +147,7 @@
   #progtxt{font-size:10px; letter-spacing:.12em; color:var(--muted); display:none; margin-bottom:8px;}
 
   /* ---------- empty state ---------- */
-  #empty{position:fixed; z-index:5; inset:0; display:flex; flex-direction:column; align-items:center;
+  #empty{position:absolute; z-index:5; inset:0; display:flex; flex-direction:column; align-items:center;
     justify-content:center; gap:20px; text-align:center; padding:40px;}
   #empty .mark{width:88px; height:59px; border:1px solid #3a3c42; position:relative;}
   #empty .mark::after{content:""; position:absolute; inset:7px; border:1px solid #26282d;}
@@ -254,11 +266,10 @@
     <div class="group">
       <div class="label">Keeping the screen on</div>
       <div class="row"><span class="k">Screen lock held</span><span class="v" id="vWake">—</span></div>
-      <div class="row"><span class="k">Fullscreen possible</span><span class="v" id="vFs">—</span></div>
-      <button class="btn wide" id="bFs">Try true fullscreen</button>
-      <div class="row"><span class="k">Go fullscreen on first tap</span>
-        <label class="switch"><input type="checkbox" id="cFsTap"><span></span></label></div>
-      <div class="hint" id="fsMsg">Fullscreen hides the status bar and reclaims the last 32 points. iOS only grants it in response to a tap, so it can't happen automatically at launch.</div>
+      <div class="row"><span class="k">Fullscreen API</span><span class="v" id="vFs">—</span></div>
+      <div class="hint">The frame already fills the whole screen straight from the home-screen icon,
+        so the Fullscreen API isn't needed. This row stays only because iOS answers it differently
+        from the icon than it does in a Safari tab, which is worth being able to see.</div>
       <div class="hint">If screen lock says <b>no</b>, open Settings → Display &amp; Brightness → Auto-Lock and choose <b>Never</b>. Triple-click the top button to start Guided Access if you want the iPad locked to this screen.</div>
     </div>
 
@@ -267,17 +278,11 @@
       <pre id="diag" style="font-family:var(--mono);font-size:10.5px;line-height:1.8;color:#c3c4c9;
         background:var(--panel-2);border:1px solid var(--line);border-radius:2px;padding:12px;
         margin:0 0 10px;white-space:pre-wrap;overflow-x:auto;">—</pre>
-      <div class="row"><span class="k">Stage height source</span></div>
-      <div class="seg" id="segH">
-        <button data-v="auto">innerHeight</button>
-        <button data-v="100vh">100vh</button>
-        <button data-v="100lvh">100lvh</button>
-        <button data-v="100dvh">100dvh</button>
-        <button data-v="-webkit-fill-available">fill-avail</button>
-      </div>
-      <div class="hint">Pick whichever one makes the black strip disappear. The measured value of each is listed above — anything reading 970 reaches the bottom of the screen.</div>
       <button class="btn wide" id="bBounds">Flash the page bounds</button>
-      <div class="hint">The flash paints the whole document magenta for three seconds. Anything still black afterwards is outside the page and can't be reached by this app.</div>
+      <div class="hint">Paints the page magenta, with a cyan band over its last 60 points, on a red
+        backdrop. Read the <b>bottom edge of the screen</b> for six seconds: <b>cyan</b> means the web
+        view genuinely ends where the page ends and those points are unreachable; <b>red</b> means
+        there are pixels below the page that this app simply isn't painting.</div>
     </div>
 
     <div class="group">
@@ -296,7 +301,7 @@
 <script>
 "use strict";
 
-const BUILD = "2026-08-11.8";
+const BUILD = "2026-08-11.9";
 
 /* ============ storage ============ */
 const DB_NAME="photoframe", DB_VER=1;
@@ -328,7 +333,7 @@ const S = {
   mode:"black", mat:"warm", matW:52, zoom:100, cropY:50,
   intervalIdx:5, fade:1200, shuffle:true,
   clock:false, bright:100,
-  night:false, from:"22:30", to:"07:00", nightB:8, fsOnTap:false, hUnit:"auto"
+  night:false, from:"22:30", to:"07:00", nightB:8
 };
 const INTERVALS=[10,30,60,120,300,600,900,1800,3600,7200];
 const INT_LABEL=["10 s","30 s","1 min","2 min","5 min","10 min","15 min","30 min","1 h","2 h"];
@@ -463,15 +468,13 @@ function apply(){
   $("#vNightB").textContent=S.nightB+" %";
   $("#clock").classList.toggle("on", S.clock);
 
-  setPressed("#segMode",S.mode); setPressed("#segMat",S.mat); setPressed("#segCrop",String(S.cropY)); setPressed("#segH",S.hUnit);
+  setPressed("#segMode",S.mode); setPressed("#segMat",S.mat); setPressed("#segCrop",String(S.cropY));
   $("#rInt").value=S.intervalIdx; $("#rFade").value=S.fade; $("#rMatW").value=S.matW;
   $("#rZoom").value=S.zoom;
   $("#rBright").value=S.bright; $("#rNightB").value=S.nightB;
   $("#cShuffle").checked=S.shuffle; $("#cClock").checked=S.clock; $("#cNight").checked=S.night;
-  $("#cFsTap").checked=S.fsOnTap;
   $("#tFrom").value=S.from; $("#tTo").value=S.to;
 
-  fitViewport();
   updateDim();
   saveSettings(S);
 }
@@ -520,7 +523,7 @@ function showChrome(){
   clearTimeout(hideT);
   hideT=setTimeout(()=>bar.classList.remove("on"), 5000);
 }
-$("#tapzone").addEventListener("click", ()=>{ showChrome(); keepAwake(); if(S.fsOnTap) goFullscreen(); });
+$("#tapzone").addEventListener("click", ()=>{ showChrome(); keepAwake(); });
 $("#bNext").addEventListener("click",e=>{e.stopPropagation(); advance(1); showChrome();});
 $("#bPrev").addEventListener("click",e=>{e.stopPropagation(); advance(-1); showChrome();});
 $("#bPause").addEventListener("click",e=>{
@@ -556,7 +559,6 @@ $("#bClear").addEventListener("click",async ()=>{
 
 document.querySelectorAll("#segMode button").forEach(b=>b.addEventListener("click",()=>{ S.mode=b.dataset.v; apply(); }));
 document.querySelectorAll("#segMat button").forEach(b=>b.addEventListener("click",()=>{ S.mat=b.dataset.v; apply(); }));
-document.querySelectorAll("#segH button").forEach(b=>b.addEventListener("click",()=>{ S.hUnit=b.dataset.v; apply(); setTimeout(readDiag,120); }));
 document.querySelectorAll("#segCrop button").forEach(b=>b.addEventListener("click",()=>{ S.cropY=+b.dataset.v; apply(); }));
 $("#rZoom").addEventListener("input",e=>{ S.zoom=+e.target.value; apply(); });
 
@@ -568,34 +570,21 @@ $("#rNightB").addEventListener("input",e=>{ S.nightB=+e.target.value; apply(); }
 $("#cShuffle").addEventListener("change",e=>{ S.shuffle=e.target.checked; reorder(); apply(); });
 $("#cClock").addEventListener("change",e=>{ S.clock=e.target.checked; apply(); });
 $("#cNight").addEventListener("change",e=>{ S.night=e.target.checked; apply(); });
-$("#cFsTap").addEventListener("change",e=>{ S.fsOnTap=e.target.checked; apply(); });
 $("#tFrom").addEventListener("change",e=>{ S.from=e.target.value; apply(); });
 $("#tTo").addEventListener("change",e=>{ S.to=e.target.value; apply(); });
 
-/* ============ fullscreen ============ */
+/* ============ fullscreen (reported only \u2014 the layout no longer needs it) ============ */
 const root=document.documentElement;
 function fsSupported(){ return !!(root.requestFullscreen || root.webkitRequestFullscreen); }
 function fsActive(){ return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-async function goFullscreen(){
-  if(!fsSupported() || fsActive()) return false;
-  try{
-    if(root.requestFullscreen) await root.requestFullscreen();
-    else root.webkitRequestFullscreen();
-    return true;
-  }catch(e){ return false; }
-}
-$("#bFs").addEventListener("click", async ()=>{
-  const msg=$("#fsMsg");
-  if(!fsSupported()){ msg.textContent="This device doesn't offer the Fullscreen API here. Guided Access is the remaining way to hide the status bar."; return; }
-  const ok=await goFullscreen();
-  msg.textContent = ok ? "Fullscreen requested \u2014 close this panel and check the shortfall line."
-                       : "iOS refused the request. That usually means fullscreen isn't allowed from a home screen app; try the same page in Safari.";
-  setTimeout(readDiag,400);
-});
-["fullscreenchange","webkitfullscreenchange"].forEach(ev=>
-  document.addEventListener(ev, ()=>{ setTimeout(()=>{ fitViewport(); readDiag(); },150); }));
 
 /* ============ diagnostics ============ */
+/* Height of the physical screen in points, whichever way up the iPad is. */
+function screenH(){
+  const a=Math.max(screen.availWidth,screen.availHeight);
+  const b=Math.min(screen.availWidth,screen.availHeight);
+  return window.innerWidth>window.innerHeight ? b : a;
+}
 function readDiag(){
   const cs=getComputedStyle($("#probe"));
   const sa=["top","right","bottom","left"].map(k=>parseFloat(cs["padding"+k[0].toUpperCase()+k.slice(1)])||0);
@@ -607,9 +596,7 @@ function readDiag(){
     "visualvp     : "+(vv?Math.round(vv.width)+" x "+Math.round(vv.height)+"  scale "+vv.scale.toFixed(2):"n/a"),
     "screen       : "+screen.width+" x "+screen.height,
     "avail screen : "+screen.availWidth+" x "+screen.availHeight,
-    "shortfall    : "+(Math.max(screen.availWidth,screen.availHeight)===window.innerWidth
-        ? (Math.min(screen.availWidth,screen.availHeight)-window.innerHeight)
-        : (Math.max(screen.availWidth,screen.availHeight)-window.innerHeight))+" pt (0 = full screen)",
+    "shortfall    : "+(screenH()-window.innerHeight)+" pt (0 = full screen)",
     "pixel ratio  : "+window.devicePixelRatio,
     "safe area    : t"+sa[0]+" r"+sa[1]+" b"+sa[2]+" l"+sa[3],
     "orientation  : "+(window.innerWidth>window.innerHeight?"landscape":"portrait"),
@@ -619,18 +606,34 @@ function readDiag(){
     "100svh       : "+measure("100svh"),
     "100dvh       : "+measure("100dvh"),
     "fill-avail   : "+measure("-webkit-fill-available"),
-    "--vh         : "+getComputedStyle(document.documentElement).getPropertyValue("--vh").trim(),
+    "stage painted: "+Math.round(stage.getBoundingClientRect().height)+" pt (should equal the screen height)",
     "build        : "+BUILD
   ];
   $("#diag").textContent=lines.join("\n");
 }
 window.addEventListener("resize", ()=>setTimeout(readDiag,80));
 
+/* The old version of this painted #stage, which is position:fixed and sized to
+   innerHeight — so it left 32pt of black whether the web view frame was short or
+   not, and could never tell those two cases apart. This paints the root element
+   instead: a root background-COLOR covers the entire canvas however tall the view
+   frame is, while the background-IMAGE is confined to the root box. Whatever shows
+   below the image is canvas the page is failing to reach. */
 $("#bBounds").addEventListener("click", ()=>{
-  const prev=stage.style.background;
-  stage.style.background="#ff00c8";
-  stage.style.boxShadow="inset 0 0 0 5px #00ffe1";
-  setTimeout(()=>{ stage.style.background=prev; stage.style.boxShadow=""; }, 3000);
+  const r=document.documentElement, prev=r.getAttribute("style")||"";
+  const W=window.innerWidth, H=window.innerHeight;
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'">'
+    +'<rect width="100%" height="100%" fill="#b800b8"/>'
+    +'<rect y="'+(H-60)+'" width="100%" height="60" fill="#00e5ff"/>'
+    +'<text x="'+(W/2)+'" y="'+(H-22)+'" text-anchor="middle" font-family="monospace"'
+    +' font-size="17" fill="#000">the page ends here — '+H+' of '+screenH()+'</text></svg>';
+  r.style.height=H+"px";
+  r.style.backgroundColor="#ff0000";
+  r.style.backgroundImage='url("data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg)+'")';
+  r.style.backgroundRepeat="no-repeat";
+  r.style.backgroundPosition="top left";
+  r.style.backgroundSize=W+"px "+H+"px";
+  setTimeout(()=>r.setAttribute("style", prev), 6000);
 });
 
 /* ============ version ============ */
@@ -658,18 +661,9 @@ function measure(unit){
   d.remove();
   return h;
 }
-function fitViewport(){
-  if(S.hUnit && S.hUnit!=="auto"){
-    document.documentElement.style.setProperty("--vh", S.hUnit);
-    return;
-  }
-  const h = (window.visualViewport ? window.visualViewport.height : 0) || window.innerHeight;
-  document.documentElement.style.setProperty("--vh", h+"px");
-}
-fitViewport();
-window.addEventListener("resize", fitViewport);
-window.addEventListener("orientationchange", ()=>setTimeout(fitViewport,300));
-if(window.visualViewport) window.visualViewport.addEventListener("resize", fitViewport);
+/* There is deliberately no JS viewport fitting any more. Sizing the stage from
+   innerHeight was what pinned it to 938; CSS 100lvh on a non-fixed box already
+   measures the full screen and now actually paints it. */
 
 /* ============ boot ============ */
 (async function(){
